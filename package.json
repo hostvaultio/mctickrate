@@ -1,13 +1,13 @@
 {
-  "name": "mcbench",
+  "name": "tickprobe",
   "version": "0.1.0",
   "description": "Measure how many players a Minecraft server can actually hold. Ramps simulated players against any server and reports TPS/MSPT at each step.",
   "type": "module",
-  "bin": { "mcbench": "./src/index.js" },
+  "bin": { "tickprobe": "./src/index.js" },
   "main": "./src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "example": "node src/index.js --config mcbench.config.example.json --dry-run"
+    "example": "node src/index.js --config tickprobe.config.example.json --dry-run"
   },
   "keywords": ["minecraft", "benchmark", "load-testing", "tps", "paper", "mineflayer"],
   "license": "MIT",

@@ -1,9 +1,9 @@
-# mcbench
+# tickprobe
 
 **How many players can this Minecraft server actually hold?**
 
 Every host advertises RAM. Almost none publish what that RAM does under load, and
-the few numbers that exist come with no method attached. mcbench ramps simulated
+the few numbers that exist come with no method attached. tickprobe ramps simulated
 players against a server and reports TPS — and MSPT where available — at each
 step, so the answer is a measurement instead of a marketing claim.
 
@@ -49,14 +49,14 @@ Node 20+.
 
 ```bash
 # no config file needed
-npx mcbench --server.host=play.example.com --ramp=1,5,10,20 --holdSeconds=120
+npx tickprobe --server.host=play.example.com --ramp=1,5,10,20 --holdSeconds=120
 
 # or keep it in a file
-cp mcbench.config.example.json mcbench.config.json
-npx mcbench --config=mcbench.config.json
+cp tickprobe.config.example.json tickprobe.config.json
+npx tickprobe --config=tickprobe.config.json
 
 # see the resolved config without running anything
-npx mcbench --config=mcbench.config.json --dry-run
+npx tickprobe --config=tickprobe.config.json --dry-run
 ```
 
 Any config key can be set on the command line by its dotted path
@@ -75,7 +75,7 @@ so it only works on servers you administer.
 
 ## How this compares to other tools
 
-Minecraft load-testing splits into two categories. mcbench sits deliberately between
+Minecraft load-testing splits into two categories. tickprobe sits deliberately between
 them, and it is genuinely worse than both at some things — worth knowing before you
 pick one.
 
@@ -88,7 +88,7 @@ pick one.
 [minecraft-stress-test](https://github.com/PureGero/minecraft-stress-test),
 [Minecraft-Bot-Stress-Tester](https://github.com/tino964MC/Minecraft-Bot-Stress-Tester)
 and [SoulFire](https://soulfiremc.com) all spawn simulated players, and several do it
-better than mcbench does — web UIs, SOCKS5 proxy support, YAML scenario scripting,
+better than tickprobe does — web UIs, SOCKS5 proxy support, YAML scenario scripting,
 more sophisticated bot behaviour.
 
 What they do not do is tell you what happened. BotMark's documentation is typical:
@@ -99,7 +99,7 @@ and correlate the two by hand. That requires access to the server.
 ### Benchmark plugins measure precisely, but only on servers you run
 
 [ServerBenchmark](https://modrinth.com/plugin/serverbenchmark),
-[MCBenchmark](https://modrinth.com/plugin/mcbenchmark) and
+[MCBenchmark](https://modrinth.com/plugin/tickprobemark) and
 [MCBench-Pro](https://github.com/chatchaiGithub/MCBench-Pro) install server-side and
 read real TPS, MSPT, GC and I/O counters. **This is more accurate than anything a
 client can infer, and if you administer the server you should probably use one.**
@@ -107,12 +107,12 @@ client can infer, and if you administer the server you should probably use one.*
 The limit is structural: a plugin cannot be installed on a host you are evaluating.
 So they cannot answer "is provider A faster than provider B for my workload?"
 
-ServerBenchmark comes closest to mcbench's output — it advertises "player capacity
+ServerBenchmark comes closest to tickprobe's output — it advertises "player capacity
 recommendations" — but derives them from weighted hardware scoring rather than from
 measured load. MCBench-Pro generates synthetic CPU load to measure recovery time,
 which is a different question from how the server behaves with players on it.
 
-### What mcbench does differently
+### What tickprobe does differently
 
 It generates the load **and** measures the result in one run, and the default sampling
 path needs nothing installed server-side — TPS is inferred from the server's own
@@ -122,7 +122,7 @@ That single property is the reason this tool exists. It means you can run the sa
 benchmark, unmodified, against a host you are shopping for and the host you already
 pay, and compare the numbers. Neither category above can do that.
 
-|  | Bot swarms | Benchmark plugins | mcbench |
+|  | Bot swarms | Benchmark plugins | tickprobe |
 |---|---|---|---|
 | Generates realistic player load | ✅ | ❌ | ✅ |
 | Reports server performance | ❌ | ✅ | ✅ |
@@ -130,7 +130,7 @@ pay, and compare the numbers. Neither category above can do that.
 | Accurate MSPT / tick distribution | ❌ | ✅ | only via RCON |
 | Can compare two providers | ❌ | ❌ | ✅ |
 
-### Where mcbench is worse
+### Where tickprobe is worse
 
 - **Coarser measurement.** The default method averages over 20 ticks and cannot see
   individual spikes. A server-side plugin reads the real tick loop. If you administer
@@ -140,7 +140,7 @@ pay, and compare the numbers. Neither category above can do that.
 - **Young and unproven.** The tools above have users. This one is new.
 
 Use a plugin when you own the server and want the truth about its tick loop. Use a bot
-swarm when you only need load and already have your own observability. Use mcbench
+swarm when you only need load and already have your own observability. Use tickprobe
 when you need a number you can compare across servers you do not control.
 
 ## Why the defaults look like they do
@@ -162,7 +162,7 @@ understating load and the tool says so.
 
 ## Configuration
 
-See `mcbench.config.example.json` for every key with its default. The ones that
+See `tickprobe.config.example.json` for every key with its default. The ones that
 change results most:
 
 | Key | Default | Why it matters |

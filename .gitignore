@@ -1,5 +1,5 @@
 node_modules/
 results/
-mcbench.config.json
+tickprobe.config.json
 package-lock.json
 *.log
