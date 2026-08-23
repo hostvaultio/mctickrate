@@ -95,17 +95,37 @@ export function headline(steps) {
   // ONE threshold, so there is no gap between "comfortable" and "degraded".
   // Using p5 rather than the mean: a server averaging 20 that dips to 12 is
   // not comfortable, and the dip is what players notice.
-  const ok = withData.filter((s) => s.tps.p5 >= COMFORT_TPS_P5);
-  const firstDip = withData.find((s) => s.tps.p5 < COMFORT_TPS_P5);
+  const firstDipIdx = withData.findIndex((s) => s.tps.p5 < COMFORT_TPS_P5);
 
-  if (!ok.length) {
-    return `Below ${COMFORT_TPS_P5} TPS (p5) at every tested count, from ${withData[0].target} players up — start the ramp lower.`;
+  if (firstDipIdx === 0) {
+    return `Below ${COMFORT_TPS_P5} TPS (p5) from the very first step (${withData[0].target} players) `
+      + '— start the ramp lower.';
   }
-  const best = ok.at(-1).target;
-  if (!firstDip) {
-    return `Held ≥${COMFORT_TPS_P5} TPS (p5) at every tested count, up to ${best} players — the ceiling is above this ramp, so test higher.`;
+  if (firstDipIdx === -1) {
+    return `Held ≥${COMFORT_TPS_P5} TPS (p5) at every tested count, up to `
+      + `${withData.at(-1).target} players — the ceiling is above this ramp, so test higher.`;
   }
-  return `Held ≥${COMFORT_TPS_P5} TPS (p5) to ${best} players; first dip at ${firstDip.target} (p5 ${firstDip.tps.p5}).`;
+
+  const dip = withData[firstDipIdx];
+  const lastGood = withData[firstDipIdx - 1].target;
+
+  // A ramp is not guaranteed to fall monotonically. If a LATER step recovers
+  // above the line, the dip was probably noise rather than a wall, and
+  // reporting it as a ceiling would be wrong — an earlier version of this
+  // emitted the self-contradicting "held to 60; first dip at 50".
+  const recovered = withData
+    .slice(firstDipIdx + 1)
+    .filter((s) => s.tps.p5 >= COMFORT_TPS_P5)
+    .map((s) => s.target);
+
+  if (recovered.length) {
+    return `Inconclusive: dipped below ${COMFORT_TPS_P5} TPS (p5) at ${dip.target} players `
+      + `(p5 ${dip.tps.p5}) but recovered at ${recovered.join(', ')}. The curve is not `
+      + 'monotonic, so this is measurement noise rather than a ceiling — repeat the run, '
+      + 'hold each step longer, or narrow the ramp around that range.';
+  }
+  return `Held ≥${COMFORT_TPS_P5} TPS (p5) to ${lastGood} players; degrades from `
+    + `${dip.target} (p5 ${dip.tps.p5}).`;
 }
 
 export function write(result, cfg) {
