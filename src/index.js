@@ -8,10 +8,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(...a);
 
 const HELP = `
-tickprobe — measure how many players a Minecraft server can actually hold.
+mctickrate — measure how many players a Minecraft server can actually hold.
 
-  tickprobe --config=my.json
-  tickprobe --server.host=play.example.com --ramp=1,5,10,20 --holdSeconds=120
+  mctickrate --config=my.json
+  mctickrate --server.host=play.example.com --ramp=1,5,10,20 --holdSeconds=120
 
 Options (any config key works as --dotted.path=value):
   --config=FILE            JSON config; CLI flags override it
@@ -46,7 +46,7 @@ async function main() {
     return;
   }
 
-  log(`\ntickprobe → ${cfg.server.host}:${cfg.server.port}`);
+  log(`\nmctickrate → ${cfg.server.host}:${cfg.server.port}`);
   log(`ramp ${cfg.ramp.join(' → ')} | hold ${cfg.holdSeconds}s (settle ${cfg.settleSeconds}s) | sampling '${cfg.sampling.method}'`);
   if (!cfg.bots.move) log('WARNING: bots.move=false — stationary bots massively understate real load.');
 

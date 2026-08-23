@@ -1,5 +1,5 @@
 node_modules/
 results/
-tickprobe.config.json
+mctickrate.config.json
 package-lock.json
 *.log
