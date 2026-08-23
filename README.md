@@ -73,6 +73,76 @@ can measure a host you are evaluating rather than only one you own. No MSPT.
 tick-time distribution that actually predicts felt lag — but needs RCON enabled,
 so it only works on servers you administer.
 
+## How this compares to other tools
+
+Minecraft load-testing splits into two categories. mcbench sits deliberately between
+them, and it is genuinely worse than both at some things — worth knowing before you
+pick one.
+
+### Bot swarms generate load but do not measure it
+
+[BotMark](https://github.com/Pumpkin-MC/BotMark),
+[mc-bots](https://github.com/crpmax/mc-bots),
+[StressTest-MC](https://github.com/GaetanOff/StressTest-MC),
+[stress-bot](https://github.com/sim0n/stress-bot),
+[minecraft-stress-test](https://github.com/PureGero/minecraft-stress-test),
+[Minecraft-Bot-Stress-Tester](https://github.com/tino964MC/Minecraft-Bot-Stress-Tester)
+and [SoulFire](https://soulfiremc.com) all spawn simulated players, and several do it
+better than mcbench does — web UIs, SOCKS5 proxy support, YAML scenario scripting,
+more sophisticated bot behaviour.
+
+What they do not do is tell you what happened. BotMark's documentation is typical:
+it describes bot count, delays, movement and physics, with no TPS or MSPT reporting
+anywhere. You generate the load, then go and observe the server by some other means,
+and correlate the two by hand. That requires access to the server.
+
+### Benchmark plugins measure precisely, but only on servers you run
+
+[ServerBenchmark](https://modrinth.com/plugin/serverbenchmark),
+[MCBenchmark](https://modrinth.com/plugin/mcbenchmark) and
+[MCBench-Pro](https://github.com/chatchaiGithub/MCBench-Pro) install server-side and
+read real TPS, MSPT, GC and I/O counters. **This is more accurate than anything a
+client can infer, and if you administer the server you should probably use one.**
+
+The limit is structural: a plugin cannot be installed on a host you are evaluating.
+So they cannot answer "is provider A faster than provider B for my workload?"
+
+ServerBenchmark comes closest to mcbench's output — it advertises "player capacity
+recommendations" — but derives them from weighted hardware scoring rather than from
+measured load. MCBench-Pro generates synthetic CPU load to measure recovery time,
+which is a different question from how the server behaves with players on it.
+
+### What mcbench does differently
+
+It generates the load **and** measures the result in one run, and the default sampling
+path needs nothing installed server-side — TPS is inferred from the server's own
+20-tick time-sync packet, which every server sends to every client.
+
+That single property is the reason this tool exists. It means you can run the same
+benchmark, unmodified, against a host you are shopping for and the host you already
+pay, and compare the numbers. Neither category above can do that.
+
+|  | Bot swarms | Benchmark plugins | mcbench |
+|---|---|---|---|
+| Generates realistic player load | ✅ | ❌ | ✅ |
+| Reports server performance | ❌ | ✅ | ✅ |
+| Works without server-side access | ✅ | ❌ | ✅ |
+| Accurate MSPT / tick distribution | ❌ | ✅ | only via RCON |
+| Can compare two providers | ❌ | ❌ | ✅ |
+
+### Where mcbench is worse
+
+- **Coarser measurement.** The default method averages over 20 ticks and cannot see
+  individual spikes. A server-side plugin reads the real tick loop. If you administer
+  the server, `sampling.method=rcon` narrows the gap, but a plugin still wins.
+- **Simpler bots.** No proxy support, no scenario scripting, no web UI, no combat or
+  building behaviour. Bots walk, turn and jump.
+- **Young and unproven.** The tools above have users. This one is new.
+
+Use a plugin when you own the server and want the truth about its tick loop. Use a bot
+swarm when you only need load and already have your own observability. Use mcbench
+when you need a number you can compare across servers you do not control.
+
 ## Why the defaults look like they do
 
 **Bots move, and they spread out.** Server load is dominated by how many distinct
