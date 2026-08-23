@@ -11,16 +11,25 @@ It works against **any** server, including ones you do not administer, because t
 default sampling method needs nothing enabled server-side. That is deliberate: a
 benchmark only one party can run is not evidence.
 
+A real run — Paper 1.21.11 on a container capped to 4 GB / 2 CPUs, superflat
+world, AMD Ryzen 7 9800X3D:
+
 ```
 | Players | Joined | Moving | TPS mean | TPS p5 | TPS min | Samples |
 |--------:|-------:|-------:|---------:|-------:|--------:|--------:|
-|       1 |      1 |      1 |       20 |     20 |      20 |     150 |
-|       5 |      5 |      5 |       20 |     20 |   19.94 |     150 |
-|      10 |     10 |      9 |    19.87 |  19.41 |   18.62 |     149 |
-|      20 |     20 |     17 |    17.24 |  14.90 |   13.11 |     148 |
+|      10 |     10 |     10 |    19.99 |  19.95 |   19.84 |      52 |
+|      20 |     20 |     20 |    19.99 |  19.92 |   19.86 |      52 |
+|      30 |     30 |     30 |    19.99 |  19.94 |   19.87 |      52 |
+|      40 |     40 |     40 |    19.95 |  19.68 |   19.41 |      52 |
 
-Held ≥19.5 TPS (p5) to 5 players; first dip at 10 (p5 19.41).
+Held ≥19.5 TPS (p5) at every tested count, up to 40 players — the ceiling is
+above this ramp, so test higher.
 ```
+
+Note what that output does *not* say. It does not say "this plan holds 40
+players" — it says the ceiling was not found, because the ramp stopped at the
+server's `max-players`. The first real strain is visible at 40 (p5 drops from
+19.94 to 19.68) but the tool will not extrapolate for you.
 
 ## Read this before quoting any number it produces
 
