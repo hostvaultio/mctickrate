@@ -66,7 +66,13 @@ async function main() {
     for (const target of cfg.ramp) {
       if (interrupted) break;
       log(`\n─ ${target} players ─`);
-      await swarm.growTo(target, (firstBot) => sampler.attach(firstBot));
+      try {
+        await swarm.growTo(target, (firstBot) => sampler.attach(firstBot));
+      } catch (err) {
+        log(`\n${err.message}`);
+        log('Aborting — no usable data from this step onward.');
+        break;
+      }
 
       const joined = swarm.population;
       if (joined < target) log(`  ! only ${joined}/${target} connected`);
