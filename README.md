@@ -34,11 +34,13 @@ Held ≥19.5 TPS (p5) to 5 players; first dip at 10 (p5 19.41).
   `rcon` when you administer the server and want the tick-time distribution.
 - **Results are pinned to a moment.** Server software, version, hardware and plan
   limits all move. Record them — the tool makes you — and re-run.
-- **Bots get stuck, and stuck bots understate load.** Walking clients fall off
-  terrain and wedge, at which point they stop loading chunks and stop costing
-  the server anything. The tool detects this, tries to free them, and reports
-  `moving` alongside `joined` — **if `moving` is well below `joined`, the run is
-  not measuring what it claims.** This is the largest open weakness; see below.
+- **Bots wedge on natural terrain — run the target on a superflat world.**
+  On generated terrain, walking clients fall off ledges and stick, stop loading
+  chunks, and stop costing the server anything. Measured: 0 of 5 bots still
+  moving. On a superflat world (`level-type=minecraft:flat`) the same run held
+  **6 of 6 moving**. The tool reports `moving` next to `joined` either way —
+  **if `moving` is well below `joined`, the run is not measuring what it
+  claims.**
 - **There is a Minecraft version ceiling.** mineflayer's protocol data lags new
   releases. Measured 2026-08-22, the newest it will connect to is **1.21.11** —
   it refuses 26.x with *"Server version is not supported"*. You cannot benchmark
@@ -169,19 +171,32 @@ to 12 is not a comfortable server. The bad tail is what players notice, so
 bot stops loading new chunks. If `moving` is well below `joined`, the run is
 understating load and the tool says so.
 
-### Known issue: bots wedge in terrain
+### Run the target on a superflat world
 
-Verified against a live server: a bot walks for a few seconds, drops off terrain
-and then sits at zero displacement with `onGround=false` while still holding
-`forward`. The harness detects the stall and attempts to free it — reverse
-heading, hop, brief reverse walk — but recovery is unreliable, and a wedged bot
-generates almost no load.
+This matters enough to be a setup requirement rather than a footnote.
 
-**Until this is solid, treat TPS figures from this tool as provisional and always
-read `moving` first.** Candidate fixes under consideration: a superflat test
-world (`level-type=flat`) so there is no terrain to catch on, which also improves
-reproducibility; spectator-mode clients, which fly and cannot collide but load
-chunks less representatively; or op'd creative flight.
+On natural terrain a bot walks a few seconds, drops off a ledge and then sits at
+exactly zero displacement with `onGround=false` while still holding `forward`.
+Measured against a live server: **0 of 5 bots still moving**. The harness detects
+the stall and tries to free it — reverse heading, hop, brief reverse walk — but
+recovery on real terrain is unreliable, and a wedged bot generates almost no
+load, so the run silently measures an idle server with statues on it.
+
+The same harness against a superflat world held **6 of 6 moving**. Set this on
+the server under test:
+
+```properties
+level-type=minecraft:flat
+generate-structures=false
+```
+
+It also makes runs more reproducible — every bot walks identical ground — at the
+cost of understating per-chunk generation expense relative to real terrain. That
+trade is worth taking: a moving bot on flat ground generates far more genuine
+load than a stuck one in hills.
+
+If you cannot change the world (benchmarking someone else's server), read
+`moving` in the report before trusting any number in it.
 
 ## Configuration
 
