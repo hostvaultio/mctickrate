@@ -1,0 +1,5 @@
+node_modules/
+results/
+mcbench.config.json
+package-lock.json
+*.log

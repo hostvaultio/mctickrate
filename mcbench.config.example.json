@@ -1,0 +1,46 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 25565,
+    "version": false,
+    "auth": "offline"
+  },
+
+  "ramp": [1, 5, 10, 15, 20],
+  "holdSeconds": 180,
+  "settleSeconds": 30,
+
+  "bots": {
+    "usernamePrefix": "bench",
+    "joinStaggerMs": 2000,
+    "move": true,
+    "turnIntervalMs": 5000,
+    "jumpChance": 0.15,
+    "spreadRadius": 500
+  },
+
+  "sampling": {
+    "method": "time",
+    "intervalMs": 5000,
+    "rcon": {
+      "host": null,
+      "port": 25575,
+      "password": null
+    }
+  },
+
+  "output": {
+    "dir": "./results",
+    "formats": ["json", "markdown"],
+    "metadata": {
+      "label": "example — 4GB plan",
+      "serverSoftware": "Paper",
+      "serverVersion": "",
+      "javaVersion": "",
+      "planRamGb": 4,
+      "planCpuPercent": 200,
+      "hardware": "",
+      "notes": "Fill these in. A result without them cannot be reproduced or compared."
+    }
+  }
+}
