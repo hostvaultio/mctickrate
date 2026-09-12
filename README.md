@@ -11,25 +11,9 @@ It works against **any** server, including ones you do not administer, because t
 default sampling method needs nothing enabled server-side. That is deliberate: a
 benchmark only one party can run is not evidence.
 
-A real run — Paper 1.21.11 on a container capped to 4 GB / 2 CPUs, superflat
-world, AMD Ryzen 7 9800X3D:
-
-```
-| Players | Joined | Moving | TPS mean | TPS p5 | TPS min | Samples |
-|--------:|-------:|-------:|---------:|-------:|--------:|--------:|
-|      10 |     10 |     10 |    19.99 |  19.95 |   19.84 |      52 |
-|      20 |     20 |     20 |    19.99 |  19.92 |   19.86 |      52 |
-|      30 |     30 |     30 |    19.99 |  19.94 |   19.87 |      52 |
-|      40 |     40 |     40 |    19.95 |  19.68 |   19.41 |      52 |
-
-Held ≥19.5 TPS (p5) at every tested count, up to 40 players — the ceiling is
-above this ramp, so test higher.
-```
-
-Note what that output does *not* say. It does not say "this plan holds 40
-players" — it says the ceiling was not found, because the ramp stopped at the
-server's `max-players`. The first real strain is visible at 40 (p5 drops from
-19.94 to 19.68) but the tool will not extrapolate for you.
+A run records timing together with five-second observations of connected bots,
+recent movement and positions. Stalled workloads stop the ramp and produce an
+**unverified** report with exit status 2. Good TPS alone cannot qualify a run.
 
 ## Read this before quoting any number it produces
 
@@ -43,13 +27,9 @@ server's `max-players`. The first real strain is visible at 40 (p5 drops from
   `rcon` when you administer the server and want the window averages and maxima.
 - **Results are pinned to a moment.** Server software, version, hardware and plan
   limits all move. Record them — the tool makes you — and re-run.
-- **Bots wedge on natural terrain — run the target on a superflat world.**
-  On generated terrain, walking clients fall off ledges and stick, stop loading
-  chunks, and stop costing the server anything. Measured: 0 of 5 bots still
-  moving. On a superflat world (`level-type=minecraft:flat`) the same run held
-  **6 of 6 moving**. The tool reports `moving` next to `joined` either way —
-  **if `moving` is well below `joined`, the run is not measuring what it
-  claims.**
+- **Bots can stall on natural terrain.** Inspect the workload observations; an
+  unverified run does not establish capacity. A pathfinder trial also stalled on
+  Paper 1.21.11, so it is not enabled in this release.
 - **There is a Minecraft version ceiling.** mineflayer's protocol data lags new
   releases. Measured 2026-08-22, the newest it will connect to is **1.21.11** —
   it refuses 26.x with *"Server version is not supported"*. You cannot benchmark
@@ -63,7 +43,7 @@ These ship in every report the tool writes, so they travel with the data.
 npm install
 ```
 
-Node 20+.
+Node 22+.
 
 ## Use
 
@@ -206,32 +186,32 @@ want: the cost of keeping chunks resident and ticking entities for N players.
 Without it, read a non-monotonic result as evidence of this effect rather than as a
 real recovery, and treat the highest steps as the least trustworthy.
 
-### Run the target on a superflat world
+### Workload qualification
 
-This matters enough to be a setup requirement rather than a footnote.
+The current movement script can stall on natural terrain. Adding a pathfinder
+alone did not resolve this in a Paper 1.21.11 live trial; traversal remains an
+open acceptance requirement. This release detects and rejects understated load.
 
-On natural terrain a bot walks a few seconds, drops off a ledge and then sits at
-exactly zero displacement with `onGround=false` while still holding `forward`.
-Measured against a live server: **0 of 5 bots still moving**. The harness detects
-the stall and tries to free it — reverse heading, hop, brief reverse walk — but
-recovery on real terrain is unreliable, and a wedged bot generates almost no
-load, so the run silently measures an idle server with statues on it.
+During each measured window, the harness records population, recent movement
+and per-client positions every five seconds, including window boundaries.
+Qualification requires all requested bots connected at every observation,
+at least 80% recently moving at every observation, and at least 80% spanning
+16 horizontal blocks over the window. A recent movement means more than two
+blocks of displacement during either of the last two movement checks.
+Observation coverage must be at least 90%, with no gap over ten seconds.
+These checks reject stalled clients and small-area oscillation; they do not
+prove realistic play or adequate separation between all clients.
 
-The same harness against a superflat world held **6 of 6 moving**. Set this on
-the server under test:
+Invalid workloads stop further ramp steps, return exit status 2, and retain
+reports and raw observations for diagnosis. Disabling movement deliberately
+produces an unverified workload. Reports without these observations cannot be
+qualified retroactively. JSON includes trajectories and failure reasons;
+Markdown and CSV expose validity and minimum population/movement.
 
-```properties
-level-type=minecraft:flat
-generate-structures=false
-```
-
-It also makes runs more reproducible — every bot walks identical ground — at the
-cost of understating per-chunk generation expense relative to real terrain. That
-trade is worth taking: a moving bot on flat ground generates far more genuine
-load than a stuck one in hills.
-
-If you cannot change the world (benchmarking someone else's server), read
-`moving` in the report before trusting any number in it.
+Use a world representative of the workload being evaluated. Flat-world results
+must be identified as such; they do not validate natural-terrain navigation or
+generation costs. Record generator CPU and memory alongside the game server:
+a saturated generator can invalidate a run.
 
 ## Configuration
 
@@ -244,7 +224,7 @@ change results most:
 | `holdSeconds` | `180` | Time at each step. Shorter runs are noisier. |
 | `settleSeconds` | `30` | Samples discarded after each step change, while chunks load. |
 | `bots.move` | `true` | Turning this off understates load severely. |
-| `bots.spreadRadius` | `500` | How far bots disperse. `0` huddles them and understates load. |
+| `bots.spreadRadius` | `500` | How far bots disperse. `0` chooses random bearings immediately. |
 | `sampling.method` | `time` | `time` works anywhere; `rcon` is accurate and needs setup. |
 | `output.metadata` | — | Echoed into the report. Fill it in or your results are unreproducible. |
 

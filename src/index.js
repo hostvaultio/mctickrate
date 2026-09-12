@@ -2,6 +2,7 @@
 import { loadConfig, publicConfig } from './config.js';
 import { createSampler, summarise } from './sampler.js';
 import { Swarm } from './swarm.js';
+import { observeWorkload, assessWorkload, WORKLOAD_INTERVAL_MS } from './workload.js';
 import { write, headline, CAVEATS } from './report.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -82,20 +83,26 @@ async function main() {
 
       const from = Date.now();
       const holdMs = (cfg.holdSeconds - cfg.settleSeconds) * 1000;
-      await sleep(holdMs);
+      const workloadObservations = [observeWorkload(swarm, from)];
+      const observer = setInterval(() => workloadObservations.push(observeWorkload(swarm)), WORKLOAD_INTERVAL_MS);
+      try { await sleep(holdMs); } finally { clearInterval(observer); }
       const to = Date.now();
+      workloadObservations.push(observeWorkload(swarm, to));
 
       const moving = swarm.movingCount();
       const summary = summarise(sampler.samples, from, to);
-      const step = { target, joined, moving, ...summary };
+      const workload = assessWorkload(workloadObservations, from, to, target, cfg.bots.move);
+      const step = { target, joined: swarm.population, moving, workload, workloadObservations, ...summary };
       steps.push(step);
 
       log(`  TPS mean ${summary.tps.mean ?? '—'} | p5 ${summary.tps.p5 ?? '—'} | min ${summary.tps.min ?? '—'}`
         + (summary.mspt ? ` | MSPT ${summary.mspt.mean}ms (max ${summary.mspt.max}ms)` : '')
         + ` | ${summary.samples} samples | ${moving}/${joined} moving`);
 
-      if (moving < joined * 0.5 && cfg.bots.move) {
-        log('  ! fewer than half the bots are displacing — they may be stuck. Load is understated.');
+      if (!workload.valid) {
+        log(`  ! invalid workload: ${workload.reasons.join(', ')}. Stopping the ramp.`);
+        process.exitCode = 2;
+        break;
       }
       if (summary.samples === 0) {
         log("  ! no samples in window. With method='time', check the server sends time updates.");
