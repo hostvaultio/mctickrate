@@ -40,7 +40,7 @@ server's `max-players`. The first real strain is visible at 40 (p5 drops from
   this does not reproduce.
 - **`time` sampling is coarse.** It infers TPS from the server's 20-tick time-sync
   packet, so it averages over 20 ticks and cannot see individual spikes. Use
-  `rcon` when you administer the server and want the tick-time distribution.
+  `rcon` when you administer the server and want the window averages and maxima.
 - **Results are pinned to a moment.** Server software, version, hardware and plan
   limits all move. Record them — the tool makes you — and re-run.
 - **Bots wedge on natural terrain — run the target on a superflat world.**
@@ -90,7 +90,7 @@ So `TPS = 20 / interval`. Nothing has to be enabled on the server, which means y
 can measure a host you are evaluating rather than only one you own. No MSPT.
 
 **`rcon`.** Polls Paper's `/tps` and `/mspt` directly. Accurate, and gives the
-tick-time distribution that actually predicts felt lag — but needs RCON enabled,
+rolling tick-time averages and maxima — but needs RCON enabled,
 so it only works on servers you administer.
 
 ## How this compares to other tools
@@ -147,7 +147,7 @@ pay, and compare the numbers. Neither category above can do that.
 | Generates realistic player load | ✅ | ❌ | ✅ |
 | Reports server performance | ❌ | ✅ | ✅ |
 | Works without server-side access | ✅ | ❌ | ✅ |
-| Accurate MSPT / tick distribution | ❌ | ✅ | only via RCON |
+| MSPT window averages / maxima | ❌ | ✅ | via RCON |
 | Can compare two providers | ❌ | ❌ | ✅ |
 
 ### Where mctickrate is worse
@@ -257,3 +257,20 @@ Most hosts' terms prohibit load-testing shared infrastructure without notice.
 ## Licence
 
 MIT. See `LICENSE`.
+
+## RCON measurement and report contract
+
+Paper's `tps` command reports 1m/5m/15m averages. The sampler records the 1m
+value. `mspt` reports average/minimum/maximum for 5s/10s/1m windows; the sampler
+records the 5s window. Unknown or malformed responses do not produce fabricated
+measurements. A missing MSPT response does not discard a valid TPS observation.
+
+Reports use `mspt.mean` (average of sampled window means) and `mspt.max` (largest
+observed window maximum). The former `mspt.p95` / CSV `mspt_p95` fields were
+incorrect and are removed: Paper does not return a tick-time percentile here.
+`tpsSamples` and `msptSamples` expose partial measurement coverage. Polling is
+serialized so slow RCON responses cannot create overlapping requests.
+
+RCON passwords are redacted from JSON reports and `--dry-run` output. Keep the
+input configuration private and use a localhost binding or trusted SSH tunnel
+for RCON. `npm test` runs offline regression tests without contacting game hosts.

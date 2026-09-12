@@ -63,7 +63,7 @@ export const DEFAULTS = {
 
 function deepMerge(base, override) {
   if (override === undefined || override === null) return base;
-  if (Array.isArray(base) || typeof base !== 'object') return override;
+  if (base === null || Array.isArray(base) || typeof base !== 'object') return override;
   const out = { ...base };
   for (const [k, v] of Object.entries(override)) {
     out[k] = k in base ? deepMerge(base[k], v) : v;
@@ -118,7 +118,15 @@ export function validate(cfg) {
   if (cfg.sampling.method === 'rcon' && !cfg.sampling.rcon.password) {
     errs.push('sampling.method=rcon requires sampling.rcon.password');
   }
+  if (!Number.isFinite(cfg.sampling.intervalMs) || cfg.sampling.intervalMs < 1) errs.push('sampling.intervalMs must be a positive number');
   if (cfg.settleSeconds >= cfg.holdSeconds) errs.push('settleSeconds must be less than holdSeconds');
   if (errs.length) throw new Error(`Invalid config:\n  - ${errs.join('\n  - ')}`);
   return cfg;
+}
+
+/** Reports and dry runs may be shared; never include the RCON credential. */
+export function publicConfig(cfg) {
+  const copy = structuredClone(cfg);
+  if (copy.sampling?.rcon?.password) copy.sampling.rcon.password = '[REDACTED]';
+  return copy;
 }

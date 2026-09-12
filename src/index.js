@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { loadConfig, DEFAULTS } from './config.js';
+import { loadConfig, publicConfig } from './config.js';
 import { createSampler, summarise } from './sampler.js';
 import { Swarm } from './swarm.js';
 import { write, headline, CAVEATS } from './report.js';
@@ -42,7 +42,7 @@ async function main() {
   }
 
   if (argv.includes('--dry-run')) {
-    log(JSON.stringify(cfg, null, 2));
+    log(JSON.stringify(publicConfig(cfg), null, 2));
     return;
   }
 
@@ -91,7 +91,7 @@ async function main() {
       steps.push(step);
 
       log(`  TPS mean ${summary.tps.mean ?? '—'} | p5 ${summary.tps.p5 ?? '—'} | min ${summary.tps.min ?? '—'}`
-        + (summary.mspt ? ` | MSPT ${summary.mspt.mean}ms (p95 ${summary.mspt.p95}ms)` : '')
+        + (summary.mspt ? ` | MSPT ${summary.mspt.mean}ms (max ${summary.mspt.max}ms)` : '')
         + ` | ${summary.samples} samples | ${moving}/${joined} moving`);
 
       if (moving < joined * 0.5 && cfg.bots.move) {
@@ -115,7 +115,7 @@ async function main() {
     finishedAt: new Date().toISOString(),
     interrupted,
     metadata: cfg.output.metadata,
-    config: cfg,
+    config: publicConfig(cfg),
     steps,
     headline: headline(steps),
     caveats: CAVEATS,

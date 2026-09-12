@@ -1,0 +1,10 @@
+{
+  "tps": "\u00a76TPS from last 1m, 5m, 15m: \u00a7a20.0\u00a7r, \u00a7a20.0\u00a7r, \u00a7a20.0\n",
+  "mspt": "\u00a76Server tick times \u00a7e(\u00a77avg\u00a7e/\u00a77min\u00a7e/\u00a77max\u00a7e)\u00a76 from last 5s\u00a77,\u00a76 10s\u00a77,\u00a76 1m\u00a7e:\n\u00a76\u25f4 \u00a7a0.5\u00a77/\u00a7a0.1\u00a77/\u00a7a5.0\u00a7e, \u00a7a0.5\u00a77/\u00a7a0.1\u00a77/\u00a7a5.0\u00a7e, \u00a7a0.7\u00a77/\u00a7a0.1\u00a77/\u00a7a18.9\n",
+  "parsed": {
+    "tps": 20,
+    "msptMean": 0.5,
+    "msptMin": 0.1,
+    "msptMax": 5
+  }
+}
