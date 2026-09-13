@@ -1,4 +1,5 @@
 import mineflayer from 'mineflayer';
+import { TerrainNavigator } from './navigation.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,6 +100,8 @@ export class Swarm {
         return resolve({ error: explain(err.message) });
       }
 
+      bot._corrections = 0;
+      bot.on('forcedMove', () => { bot._corrections++; });
       bot._alive = false;
       bot._lastPos = null;
       bot._movedAt = 0;
@@ -123,6 +126,8 @@ export class Swarm {
       });
       bot.on('end', (reason) => {
         bot._alive = false;
+        bot._navigation?.stop();
+        if (bot._timer) clearInterval(bot._timer);
         finish({ error: `disconnected: ${String(reason).slice(0, 120)}` });
       });
       bot.on('kicked', (why) => {
@@ -148,6 +153,17 @@ export class Swarm {
   _drive(bot) {
     const { move, turnIntervalMs, jumpChance, spreadRadius } = this.cfg.bots;
     if (!move) return;
+    if (this.cfg.bots.navigation === 'pathfinder') {
+      bot._navigation = new TerrainNavigator(bot, this.cfg.bots);
+      bot._navigation.start();
+      bot._timer = setInterval(() => {
+        if (!bot._alive || !bot.entity?.position) return;
+        const p = bot.entity.position;
+        if (bot._lastPos && p.distanceTo(bot._lastPos) > MOVED_THRESHOLD_BLOCKS) bot._movedAt = Date.now();
+        bot._lastPos = p.clone();
+      }, turnIntervalMs);
+      return;
+    }
 
     const bearing = Math.random() * Math.PI * 2;
     const disperseUntil = Date.now() + (spreadRadius > 0 ? (spreadRadius / 4.3) * 1000 : 0);
@@ -207,6 +223,7 @@ export class Swarm {
   async shutdown() {
     for (const bot of this.bots) {
       if (bot._timer) clearInterval(bot._timer);
+      bot._navigation?.stop();
       try { bot.quit(); } catch { /* already disconnected */ }
     }
     await sleep(500);

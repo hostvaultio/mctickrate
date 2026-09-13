@@ -11,45 +11,25 @@ It works against **any** server, including ones you do not administer, because t
 default sampling method needs nothing enabled server-side. That is deliberate: a
 benchmark only one party can run is not evidence.
 
-A real run — Paper 1.21.11 on a container capped to 4 GB / 2 CPUs, superflat
-world, AMD Ryzen 7 9800X3D:
-
-```
-| Players | Joined | Moving | TPS mean | TPS p5 | TPS min | Samples |
-|--------:|-------:|-------:|---------:|-------:|--------:|--------:|
-|      10 |     10 |     10 |    19.99 |  19.95 |   19.84 |      52 |
-|      20 |     20 |     20 |    19.99 |  19.92 |   19.86 |      52 |
-|      30 |     30 |     30 |    19.99 |  19.94 |   19.87 |      52 |
-|      40 |     40 |     40 |    19.95 |  19.68 |   19.41 |      52 |
-
-Held ≥19.5 TPS (p5) at every tested count, up to 40 players — the ceiling is
-above this ramp, so test higher.
-```
-
-Note what that output does *not* say. It does not say "this plan holds 40
-players" — it says the ceiling was not found, because the ramp stopped at the
-server's `max-players`. The first real strain is visible at 40 (p5 drops from
-19.94 to 19.68) but the tool will not extrapolate for you.
+A run records timing together with five-second observations of connected bots,
+recent movement and positions. Stalled workloads stop the ramp and produce an
+**unverified** report with exit status 2. Good TPS alone cannot qualify a run.
 
 ## Read this before quoting any number it produces
 
-- **Simulated clients are not players.** They do not render the world and carry no
-  client-side cost. Real players at the same count are heavier. **A player count
-  from this tool is a ceiling, not a promise.**
+- **Simulated activity differs from real play.** The measured count applies to
+  this workload. Building, combat, plugins and idle time change server demand;
+  rendering happens on the client and does not establish a server-side cost ratio.
 - **Bots wander on a script.** Real players cluster, build, fight and idle in ways
   this does not reproduce.
 - **`time` sampling is coarse.** It infers TPS from the server's 20-tick time-sync
   packet, so it averages over 20 ticks and cannot see individual spikes. Use
-  `rcon` when you administer the server and want the tick-time distribution.
+  `rcon` when you administer the server and want the window averages and maxima.
 - **Results are pinned to a moment.** Server software, version, hardware and plan
   limits all move. Record them — the tool makes you — and re-run.
-- **Bots wedge on natural terrain — run the target on a superflat world.**
-  On generated terrain, walking clients fall off ledges and stick, stop loading
-  chunks, and stop costing the server anything. Measured: 0 of 5 bots still
-  moving. On a superflat world (`level-type=minecraft:flat`) the same run held
-  **6 of 6 moving**. The tool reports `moving` next to `joined` either way —
-  **if `moving` is well below `joined`, the run is not measuring what it
-  claims.**
+- **Bots can still stall on natural terrain.** Inspect the workload observations;
+  an unverified run does not establish capacity. Leaf removal is opt-in and may
+  be needed to escape a canopy in a disposable exploration fixture.
 - **There is a Minecraft version ceiling.** mineflayer's protocol data lags new
   releases. Measured 2026-08-22, the newest it will connect to is **1.21.11** —
   it refuses 26.x with *"Server version is not supported"*. You cannot benchmark
@@ -63,7 +43,7 @@ These ship in every report the tool writes, so they travel with the data.
 npm install
 ```
 
-Node 20+.
+Node 22+.
 
 ## Use
 
@@ -90,7 +70,7 @@ So `TPS = 20 / interval`. Nothing has to be enabled on the server, which means y
 can measure a host you are evaluating rather than only one you own. No MSPT.
 
 **`rcon`.** Polls Paper's `/tps` and `/mspt` directly. Accurate, and gives the
-tick-time distribution that actually predicts felt lag — but needs RCON enabled,
+rolling tick-time averages and maxima — but needs RCON enabled,
 so it only works on servers you administer.
 
 ## How this compares to other tools
@@ -147,7 +127,7 @@ pay, and compare the numbers. Neither category above can do that.
 | Generates realistic player load | ✅ | ❌ | ✅ |
 | Reports server performance | ❌ | ✅ | ✅ |
 | Works without server-side access | ✅ | ❌ | ✅ |
-| Accurate MSPT / tick distribution | ❌ | ✅ | only via RCON |
+| MSPT window averages / maxima | ❌ | ✅ | via RCON |
 | Can compare two providers | ❌ | ❌ | ✅ |
 
 ### Where mctickrate is worse
@@ -206,32 +186,58 @@ want: the cost of keeping chunks resident and ticking entities for N players.
 Without it, read a non-monotonic result as evidence of this effect rather than as a
 real recovery, and treat the highest steps as the least trustworthy.
 
-### Run the target on a superflat world
+### Workload qualification
 
-This matters enough to be a setup requirement rather than a footnote.
+The default [pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder) uses bounded short waypoints, continually changes failed
+bearings and shortens unreachable routes. Drops are limited to three blocks;
+sprinting, scaffolding and towers are disabled. `bots.navigation=wander` retains
+the original control script. The 1.21.11 client collision box uses a tiny clearance
+adjustment based on [upstream PR 364](https://github.com/PrismarineJS/mineflayer-pathfinder/pull/364).
+Server attributes are unchanged. Other protocol versions retain their dimensions.
 
-On natural terrain a bot walks a few seconds, drops off a ledge and then sits at
-exactly zero displacement with `onGround=false` while still holding `forward`.
-Measured against a live server: **0 of 5 bots still moving**. The harness detects
-the stall and tries to free it — reverse heading, hop, brief reverse walk — but
-recovery on real terrain is unreliable, and a wedged bot generates almost no
-load, so the run silently measures an idle server with statues on it.
+`bots.allowLeafDigging=false` is the default. Setting it to `true` explicitly permits
+removing leaves in the tested world, which can let a client escape a tree canopy.
+Use it only on a world where you authorize that modification. Planning retains the
+pathfinder's safety rules, and a separate check immediately before digging rejects
+non-leaf blocks. Original block types and completion outcomes are recorded in JSON.
+There is no block placement or teleport recovery. A passing disposable-world run
+with this option does not establish capacity for other player activity.
+RCON mode reads positions from the server with the read-only command
+`execute as @a run data get entity @s Pos`, using a separate connection every five
+seconds. Only swarm members' positions are retained. Server positions determine
+movement and travel; client predictions and correction counters remain diagnostic
+fields. This adds command overhead to the measured workload. English Paper output
+is supported and tested against 1.21.11; missing, malformed, truncated or slow
+(over two seconds) responses invalidate the observation. Large responses that the
+RCON transport truncates must not be treated as a smaller successful population.
 
-The same harness against a superflat world held **6 of 6 moving**. Set this on
-the server under test:
+Time-packet mode has no server position access. It retains client trajectories,
+but any correction-counter change during measurement invalidates the run. No
+corrections is a minimum consistency check, not proof of server-accepted travel.
 
-```properties
-level-type=minecraft:flat
-generate-structures=false
-```
+During each measured window, the harness records population, recent movement
+and per-client positions every five seconds, including window boundaries.
+Qualification requires all requested bots connected at every observation,
+at least 80% recently moving at every observation, and at least 80% spanning
+16 horizontal blocks over the window. A recent movement means more than two
+blocks of displacement within twice `bots.turnIntervalMs`. RCON requires horizontal
+progress between consecutive server observations and warms this history during
+settling. A failed read clears movement history, so a later position cannot bridge
+an unobserved interval.
+Observation coverage must be at least 90%, with no gap over ten seconds.
+These checks reject stalled clients and small-area oscillation; they do not
+prove realistic play or adequate separation between all clients.
 
-It also makes runs more reproducible — every bot walks identical ground — at the
-cost of understating per-chunk generation expense relative to real terrain. That
-trade is worth taking: a moving bot on flat ground generates far more genuine
-load than a stuck one in hills.
+Invalid workloads stop further ramp steps, return exit status 2, and retain
+reports and raw observations for diagnosis. Disabling movement deliberately
+produces an unverified workload. Reports without these observations cannot be
+qualified retroactively. JSON includes trajectories and failure reasons;
+Markdown and CSV expose validity, the position source and minimum population/movement.
 
-If you cannot change the world (benchmarking someone else's server), read
-`moving` in the report before trusting any number in it.
+Use a world representative of the workload being evaluated. Flat-world results
+must be identified as such; they do not validate natural-terrain navigation or
+generation costs. Record generator CPU and memory alongside the game server:
+a saturated generator can invalidate a run.
 
 ## Configuration
 
@@ -243,8 +249,10 @@ change results most:
 | `ramp` | `[1,5,10,15,20]` | Player counts to step through. Must be non-decreasing. |
 | `holdSeconds` | `180` | Time at each step. Shorter runs are noisier. |
 | `settleSeconds` | `30` | Samples discarded after each step change, while chunks load. |
+| `bots.navigation` | `pathfinder` | Bounded terrain routing; `wander` selects the legacy script. |
+| `bots.allowLeafDigging` | `false` | Explicitly permits leaf removal in the tested world. |
 | `bots.move` | `true` | Turning this off understates load severely. |
-| `bots.spreadRadius` | `500` | How far bots disperse. `0` huddles them and understates load. |
+| `bots.spreadRadius` | `500` | How far bots disperse. `0` chooses random bearings immediately. |
 | `sampling.method` | `time` | `time` works anywhere; `rcon` is accurate and needs setup. |
 | `output.metadata` | — | Echoed into the report. Fill it in or your results are unreproducible. |
 
@@ -257,3 +265,20 @@ Most hosts' terms prohibit load-testing shared infrastructure without notice.
 ## Licence
 
 MIT. See `LICENSE`.
+
+## RCON measurement and report contract
+
+Paper's `tps` command reports 1m/5m/15m averages. The sampler records the 1m
+value. `mspt` reports average/minimum/maximum for 5s/10s/1m windows; the sampler
+records the 5s window. Unknown or malformed responses do not produce fabricated
+measurements. A missing MSPT response does not discard a valid TPS observation.
+
+Reports use `mspt.mean` (average of sampled window means) and `mspt.max` (largest
+observed window maximum). The former `mspt.p95` / CSV `mspt_p95` fields were
+incorrect and are removed: Paper does not return a tick-time percentile here.
+`tpsSamples` and `msptSamples` expose partial measurement coverage. Polling is
+serialized so slow RCON responses cannot create overlapping requests.
+
+RCON passwords are redacted from JSON reports and `--dry-run` output. Keep the
+input configuration private and use a localhost binding or trusted SSH tunnel
+for RCON. `npm test` runs offline regression tests without contacting game hosts.

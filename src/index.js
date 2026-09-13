@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-import { loadConfig, DEFAULTS } from './config.js';
+import { loadConfig, publicConfig } from './config.js';
 import { createSampler, summarise } from './sampler.js';
 import { Swarm } from './swarm.js';
+import { ServerWorkloadObserver } from './server-workload.js';
+import { observeWorkload, assessWorkload, WORKLOAD_INTERVAL_MS } from './workload.js';
 import { write, headline, CAVEATS } from './report.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,7 +44,7 @@ async function main() {
   }
 
   if (argv.includes('--dry-run')) {
-    log(JSON.stringify(cfg, null, 2));
+    log(JSON.stringify(publicConfig(cfg), null, 2));
     return;
   }
 
@@ -52,6 +54,7 @@ async function main() {
 
   const sampler = createSampler(cfg);
   const swarm = new Swarm(cfg, log);
+  const serverObserver = cfg.sampling.method === 'rcon' ? new ServerWorkloadObserver(cfg, swarm) : null;
   const startedAt = new Date().toISOString();
   const steps = [];
   let interrupted = false;
@@ -62,6 +65,7 @@ async function main() {
 
   try {
     await sampler.start();
+    if (serverObserver) await serverObserver.start();
 
     for (const target of cfg.ramp) {
       if (interrupted) break;
@@ -78,24 +82,44 @@ async function main() {
       if (joined < target) log(`  ! only ${joined}/${target} connected`);
 
       log(`  settling ${cfg.settleSeconds}s…`);
-      await sleep(cfg.settleSeconds * 1000);
-
-      const from = Date.now();
-      const holdMs = (cfg.holdSeconds - cfg.settleSeconds) * 1000;
-      await sleep(holdMs);
-      const to = Date.now();
-
-      const moving = swarm.movingCount();
+      const observe = () => serverObserver ? serverObserver.observe() : observeWorkload(swarm);
+      // Warm server-side movement history during settling. Await every read so slow
+      // RCON responses cannot overlap or masquerade as several observations.
+      const settleUntil = Date.now() + cfg.settleSeconds * 1000;
+      while (Date.now() < settleUntil && !interrupted) {
+        const started = Date.now();
+        await observe();
+        await sleep(Math.max(0, Math.min(settleUntil, started + WORKLOAD_INTERVAL_MS) - Date.now()));
+      }
+      if (interrupted) break;
+      const first = await observe();
+      const from = first.t;
+      const deadline = from + (cfg.holdSeconds - cfg.settleSeconds) * 1000;
+      const workloadObservations = [first];
+      let nextAt = from + WORKLOAD_INTERVAL_MS;
+      while (Date.now() < deadline && !interrupted) {
+        await sleep(Math.max(0, Math.min(nextAt, deadline) - Date.now()));
+        workloadObservations.push(await observe());
+        nextAt += WORKLOAD_INTERVAL_MS;
+        // A delayed read leaves a coverage gap; do not manufacture catch-up rows.
+        if (nextAt <= Date.now()) nextAt = Date.now() + WORKLOAD_INTERVAL_MS;
+      }
+      const to = workloadObservations.at(-1).t;
+      const moving = workloadObservations.at(-1).moving;
       const summary = summarise(sampler.samples, from, to);
-      const step = { target, joined, moving, ...summary };
+      const workload = assessWorkload(workloadObservations, from, to, target, cfg.bots.move, serverObserver ? 'server' : 'client');
+      if (interrupted) { workload.valid = false; workload.reasons.push('measurement_interrupted'); }
+      const step = { from, to, target, joined: swarm.population, moving, workload, workloadObservations, ...summary };
       steps.push(step);
 
       log(`  TPS mean ${summary.tps.mean ?? '—'} | p5 ${summary.tps.p5 ?? '—'} | min ${summary.tps.min ?? '—'}`
-        + (summary.mspt ? ` | MSPT ${summary.mspt.mean}ms (p95 ${summary.mspt.p95}ms)` : '')
+        + (summary.mspt ? ` | MSPT ${summary.mspt.mean}ms (max ${summary.mspt.max}ms)` : '')
         + ` | ${summary.samples} samples | ${moving}/${joined} moving`);
 
-      if (moving < joined * 0.5 && cfg.bots.move) {
-        log('  ! fewer than half the bots are displacing — they may be stuck. Load is understated.');
+      if (!workload.valid) {
+        log(`  ! invalid workload: ${workload.reasons.join(', ')}. Stopping the ramp.`);
+        process.exitCode = 2;
+        break;
       }
       if (summary.samples === 0) {
         log("  ! no samples in window. With method='time', check the server sends time updates.");
@@ -104,6 +128,7 @@ async function main() {
   } finally {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
+    if (serverObserver) await serverObserver.stop();
     await swarm.shutdown();
     await sampler.stop();
   }
@@ -115,7 +140,7 @@ async function main() {
     finishedAt: new Date().toISOString(),
     interrupted,
     metadata: cfg.output.metadata,
-    config: cfg,
+    config: publicConfig(cfg),
     steps,
     headline: headline(steps),
     caveats: CAVEATS,

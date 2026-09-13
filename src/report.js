@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { publicConfig } from './config.js';
 
 /**
  * A benchmark result that cannot be reproduced is an anecdote. Every writer
@@ -9,9 +10,11 @@ import { join } from 'node:path';
  */
 
 export const CAVEATS = [
-  'Simulated clients do not render the world and carry no client-side cost. Real players at the same count are heavier, so a player count derived from this tool is a CEILING, not a promise.',
-  'Bots wander on a script. Real players cluster, build, fight and idle in ways this does not reproduce.',
+  'Simulated activity differs from real play. The measured count applies only to this workload and does not predict a real-player limit.',
+  'RCON workload qualification uses server-read positions; time sampling rejects corrected client trajectories. These checks cover population, recent movement and travel; they do not prove realistic play or validate node density. A saturated load generator can invalidate a run.',
+  'Bots navigate on a script. Real players cluster, build, fight and idle in ways this does not reproduce.',
   "With sampling.method='time', TPS is inferred from the server's 20-tick time-sync packet. It is a coarse average and cannot see per-tick spikes; MSPT is unavailable.",
+  'With RCON, TPS samples are one-minute rolling averages; MSPT samples are five-second rolling averages/minima/maxima. MSPT mean averages those window means; MSPT max is the largest observed window maximum. Neither is a per-tick percentile.',
   'Results are pinned to the server software, version and hardware recorded in metadata. They go stale when any of those change.',
 ];
 
@@ -47,15 +50,19 @@ export function toMarkdown(result) {
   const hasMspt = result.steps.some((s) => s.mspt);
   lines.push(
     hasMspt
-      ? '| Players | Joined | Moving | TPS mean | TPS p5 | TPS min | MSPT mean | MSPT p95 | Samples |'
+      ? '| Players | Joined | Moving | TPS mean | TPS p5 | TPS min | MSPT mean | MSPT max | TPS / MSPT samples |'
       : '| Players | Joined | Moving | TPS mean | TPS p5 | TPS min | Samples |',
   );
   lines.push(hasMspt ? '|---:|---:|---:|---:|---:|---:|---:|---:|---:|' : '|---:|---:|---:|---:|---:|---:|---:|');
   for (const s of result.steps) {
     const base = `| ${s.target} | ${s.joined} | ${s.moving} | ${fmt(s.tps.mean)} | ${fmt(s.tps.p5)} | ${fmt(s.tps.min)} |`;
     lines.push(hasMspt
-      ? `${base} ${fmt(s.mspt?.mean, 'ms')} | ${fmt(s.mspt?.p95, 'ms')} | ${s.samples} |`
+      ? `${base} ${fmt(s.mspt?.mean, 'ms')} | ${fmt(s.mspt?.max, 'ms')} | ${s.tpsSamples} / ${s.msptSamples} |`
       : `${base} ${s.samples} |`);
+  }
+  lines.push('');
+  for (const s of result.steps) {
+    lines.push(`Workload at ${s.target} players (${s.workload?.positionSource ?? 'unknown'} positions): ${s.workload?.valid ? 'valid' : 'UNVERIFIED'}; minimum moving ${s.workload?.minMoving ?? '—'}; ${s.workload?.reasons?.join(', ') || 'see JSON position observations'}.`);
   }
   lines.push('');
 
@@ -71,11 +78,11 @@ export function toMarkdown(result) {
 }
 
 export function toCsv(result) {
-  const head = 'players,joined,moving,tps_mean,tps_p5,tps_min,tps_p50,mspt_mean,mspt_p95,samples';
+  const head = 'players,joined,moving,tps_mean,tps_p5,tps_min,tps_p50,mspt_mean,mspt_max,samples,tps_samples,mspt_samples,workload_valid,min_joined,min_moving,position_source';
   const rows = result.steps.map((s) => [
     s.target, s.joined, s.moving,
     s.tps.mean ?? '', s.tps.p5 ?? '', s.tps.min ?? '', s.tps.p50 ?? '',
-    s.mspt?.mean ?? '', s.mspt?.p95 ?? '', s.samples,
+    s.mspt?.mean ?? '', s.mspt?.max ?? '', s.samples, s.tpsSamples, s.msptSamples, s.workload?.valid ?? false, s.workload?.minJoined ?? '', s.workload?.minMoving ?? '', s.workload?.positionSource ?? '',
   ].join(','));
   return [head, ...rows].join('\n');
 }
@@ -89,8 +96,10 @@ export const COMFORT_TPS_P5 = 19.5;
  * mean, because a server that averages 20 and dips to 12 is not comfortable.
  */
 export function headline(steps) {
-  const withData = steps.filter((s) => s.tps.p5 !== null);
-  if (!withData.length) return 'No TPS samples captured — check the sampling configuration.';
+  const invalid = steps.find(s => s.workload?.valid !== true);
+  if (invalid) return `Workload unverified at ${invalid.target} players — ${invalid.workload?.reasons?.join(', ') || 'no workload observations'}. Timing does not establish capacity; fix the workload and repeat.`;
+  if (!steps.length || steps.some(s => !Number.isFinite(s.tps?.p5))) return 'Incomplete TPS measurements — check sampling and repeat; timing does not establish capacity.';
+  const withData = steps;
 
   // ONE threshold, so there is no gap between "comfortable" and "degraded".
   // Using p5 rather than the mean: a server averaging 20 that dips to 12 is
@@ -134,7 +143,7 @@ export function write(result, cfg) {
   const base = join(cfg.output.dir, `mctickrate-${stamp}`);
   const written = [];
   if (cfg.output.formats.includes('json')) {
-    writeFileSync(`${base}.json`, JSON.stringify(result, null, 2));
+    writeFileSync(`${base}.json`, JSON.stringify({ ...result, config: publicConfig(result.config) }, null, 2));
     written.push(`${base}.json`);
   }
   if (cfg.output.formats.includes('markdown')) {
