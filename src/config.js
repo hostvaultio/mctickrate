@@ -123,6 +123,9 @@ export function validate(cfg) {
     errs.push('sampling.method=rcon requires sampling.rcon.password');
   }
   if (!Number.isFinite(cfg.sampling.intervalMs) || cfg.sampling.intervalMs < 1) errs.push('sampling.intervalMs must be a positive number');
+  if (!Number.isFinite(cfg.holdSeconds) || cfg.holdSeconds <= 0) errs.push('holdSeconds must be positive and finite');
+  if (!Number.isFinite(cfg.settleSeconds) || cfg.settleSeconds < 0) errs.push('settleSeconds must be non-negative and finite');
+  if (!Number.isFinite(cfg.bots.turnIntervalMs) || cfg.bots.turnIntervalMs <= 0) errs.push('bots.turnIntervalMs must be positive and finite');
   if (cfg.settleSeconds >= cfg.holdSeconds) errs.push('settleSeconds must be less than holdSeconds');
   if (errs.length) throw new Error(`Invalid config:\n  - ${errs.join('\n  - ')}`);
   return cfg;

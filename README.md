@@ -17,9 +17,9 @@ recent movement and positions. Stalled workloads stop the ramp and produce an
 
 ## Read this before quoting any number it produces
 
-- **Simulated clients are not players.** They do not render the world and carry no
-  client-side cost. Real players at the same count are heavier. **A player count
-  from this tool is a ceiling, not a promise.**
+- **Simulated activity differs from real play.** The measured count applies to
+  this workload. Building, combat, plugins and idle time change server demand;
+  rendering happens on the client and does not establish a server-side cost ratio.
 - **Bots wander on a script.** Real players cluster, build, fight and idle in ways
   this does not reproduce.
 - **`time` sampling is coarse.** It infers TPS from the server's 20-tick time-sync
@@ -202,16 +202,28 @@ pathfinder's safety rules, and a separate check immediately before digging rejec
 non-leaf blocks. Original block types and completion outcomes are recorded in JSON.
 There is no block placement or teleport recovery. A passing disposable-world run
 with this option does not establish capacity for other player activity.
-Position corrections are recorded but do not currently disqualify a run; repeated
-corrections can inflate client-side movement. Inspect them before interpreting a
-passing workload screen as sustained server-accepted travel.
+RCON mode reads positions from the server with the read-only command
+`execute as @a run data get entity @s Pos`, using a separate connection every five
+seconds. Only swarm members' positions are retained. Server positions determine
+movement and travel; client predictions and correction counters remain diagnostic
+fields. This adds command overhead to the measured workload. English Paper output
+is supported and tested against 1.21.11; missing, malformed, truncated or slow
+(over two seconds) responses invalidate the observation. Large responses that the
+RCON transport truncates must not be treated as a smaller successful population.
+
+Time-packet mode has no server position access. It retains client trajectories,
+but any correction-counter change during measurement invalidates the run. No
+corrections is a minimum consistency check, not proof of server-accepted travel.
 
 During each measured window, the harness records population, recent movement
 and per-client positions every five seconds, including window boundaries.
 Qualification requires all requested bots connected at every observation,
 at least 80% recently moving at every observation, and at least 80% spanning
 16 horizontal blocks over the window. A recent movement means more than two
-blocks of displacement during either of the last two movement checks.
+blocks of displacement within twice `bots.turnIntervalMs`. RCON requires horizontal
+progress between consecutive server observations and warms this history during
+settling. A failed read clears movement history, so a later position cannot bridge
+an unobserved interval.
 Observation coverage must be at least 90%, with no gap over ten seconds.
 These checks reject stalled clients and small-area oscillation; they do not
 prove realistic play or adequate separation between all clients.
@@ -220,7 +232,7 @@ Invalid workloads stop further ramp steps, return exit status 2, and retain
 reports and raw observations for diagnosis. Disabling movement deliberately
 produces an unverified workload. Reports without these observations cannot be
 qualified retroactively. JSON includes trajectories and failure reasons;
-Markdown and CSV expose validity and minimum population/movement.
+Markdown and CSV expose validity, the position source and minimum population/movement.
 
 Use a world representative of the workload being evaluated. Flat-world results
 must be identified as such; they do not validate natural-terrain navigation or

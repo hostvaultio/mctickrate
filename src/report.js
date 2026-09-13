@@ -10,8 +10,8 @@ import { publicConfig } from './config.js';
  */
 
 export const CAVEATS = [
-  'Simulated clients do not render the world and carry no client-side cost. Real players at the same count are heavier, so a player count derived from this tool is a CEILING, not a promise.',
-  'Workload qualification checks population, recent movement and travel; it does not prove realistic play or validate node density. A saturated load generator can invalidate a run.',
+  'Simulated activity differs from real play. The measured count applies only to this workload and does not predict a real-player limit.',
+  'RCON workload qualification uses server-read positions; time sampling rejects corrected client trajectories. These checks cover population, recent movement and travel; they do not prove realistic play or validate node density. A saturated load generator can invalidate a run.',
   'Bots navigate on a script. Real players cluster, build, fight and idle in ways this does not reproduce.',
   "With sampling.method='time', TPS is inferred from the server's 20-tick time-sync packet. It is a coarse average and cannot see per-tick spikes; MSPT is unavailable.",
   'With RCON, TPS samples are one-minute rolling averages; MSPT samples are five-second rolling averages/minima/maxima. MSPT mean averages those window means; MSPT max is the largest observed window maximum. Neither is a per-tick percentile.',
@@ -62,7 +62,7 @@ export function toMarkdown(result) {
   }
   lines.push('');
   for (const s of result.steps) {
-    lines.push(`Workload at ${s.target} players: ${s.workload?.valid ? 'valid' : 'UNVERIFIED'}; minimum moving ${s.workload?.minMoving ?? '—'}; ${s.workload?.reasons?.join(', ') || 'see JSON position observations'}.`);
+    lines.push(`Workload at ${s.target} players (${s.workload?.positionSource ?? 'unknown'} positions): ${s.workload?.valid ? 'valid' : 'UNVERIFIED'}; minimum moving ${s.workload?.minMoving ?? '—'}; ${s.workload?.reasons?.join(', ') || 'see JSON position observations'}.`);
   }
   lines.push('');
 
@@ -78,11 +78,11 @@ export function toMarkdown(result) {
 }
 
 export function toCsv(result) {
-  const head = 'players,joined,moving,tps_mean,tps_p5,tps_min,tps_p50,mspt_mean,mspt_max,samples,tps_samples,mspt_samples,workload_valid,min_joined,min_moving';
+  const head = 'players,joined,moving,tps_mean,tps_p5,tps_min,tps_p50,mspt_mean,mspt_max,samples,tps_samples,mspt_samples,workload_valid,min_joined,min_moving,position_source';
   const rows = result.steps.map((s) => [
     s.target, s.joined, s.moving,
     s.tps.mean ?? '', s.tps.p5 ?? '', s.tps.min ?? '', s.tps.p50 ?? '',
-    s.mspt?.mean ?? '', s.mspt?.max ?? '', s.samples, s.tpsSamples, s.msptSamples, s.workload?.valid ?? false, s.workload?.minJoined ?? '', s.workload?.minMoving ?? '',
+    s.mspt?.mean ?? '', s.mspt?.max ?? '', s.samples, s.tpsSamples, s.msptSamples, s.workload?.valid ?? false, s.workload?.minJoined ?? '', s.workload?.minMoving ?? '', s.workload?.positionSource ?? '',
   ].join(','));
   return [head, ...rows].join('\n');
 }

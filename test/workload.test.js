@@ -5,8 +5,8 @@ import { headline, toCsv, toMarkdown } from '../src/report.js';
 import { DEFAULTS } from '../src/config.js';
 
 function observations() {
-  return Array.from({ length: 25 }, (_, i) => ({ t: i * 5000, joined: 5, moving: 5,
-    positions: Array.from({ length: 5 }, (_, n) => ({ name: `bot${n}`, x: n * 30 + i * 5, y: 64, z: n * 50 })) }));
+  return Array.from({ length: 25 }, (_, i) => ({ t: i * 5000, positionSource: 'client', joined: 5, moving: 5,
+    positions: Array.from({ length: 5 }, (_, n) => ({ name: `bot${n}`, corrections: 0, x: n * 30 + i * 5, y: 64, z: n * 50 })) }));
 }
 const qualify = rows => assessWorkload(rows, 0, 120000, 5);
 

@@ -1,0 +1,26 @@
+{
+  "command": "execute as @a run data get entity @s Pos",
+  "names": [
+    "load1",
+    "load2",
+    "load3",
+    "load4",
+    "load5",
+    "load6",
+    "load7",
+    "load8",
+    "load9",
+    "load10",
+    "load11",
+    "load12",
+    "load13",
+    "load14",
+    "load15",
+    "load16",
+    "load17",
+    "load18",
+    "load19",
+    "load20"
+  ],
+  "response": "load1 has the following entity data: [29.532874650241162d, 122.0d, 3.508046297981935d]load2 has the following entity data: [-40.5d, 106.0d, -9.504047792092576d]load3 has the following entity data: [34.193778205721166d, 124.0d, -22.193846368976903d]load4 has the following entity data: [-30.5d, 118.0d, -0.5068479376110712d]load5 has the following entity data: [24.032979047393237d, 108.24918707874468d, -10.500457032925896d]load6 has the following entity data: [14.425256155000959d, 119.0d, 8.750726436586154d]load7 has the following entity data: [-10.873727931835932d, 123.0d, 1.3000099999999999d]load8 has the following entity data: [-40.01121792407774d, 103.23152379758702d, -4.673303090022926d]load9 has the following entity data: [3.69999d, 123.0d, 25.52560334252008d]load10 has the following entity data: [-0.5799138273698814d, 127.41999998688698d, 1.3000099999999999d]load11 has the following entity data: [-11.676626369410258d, 118.0d, 14.514656077019522d]load12 has the following entity data: [-3.435180047504236d, 132.0d, -13.608088194523676d]load13 has the following entity data: [6.111243048395237d, 126.24918707874468d, 5.332001358125341d]load14 has the following entity data: [19.685523829715606d, 119.0d, 3.499686601592394d]load15 has the following entity data: [8.793622948185314d, 135.0d, -1.3000099999999999d]load16 has the following entity data: [4.745388722334531d, 130.17675927506423d, -6.254479376459388d]load17 has the following entity data: [-12.310191197125125d, 120.0d, 6.4908626653033465d]load18 has the following entity data: [-6.941105671945704d, 128.9215999984741d, -6.656035487952888d]load19 has the following entity data: [-6.102567982521369d, 130.85489329934836d, -4.475967032325423d]load20 has the following entity data: [-2.5d, 122.0d, 10.5d]"
+}

@@ -2,6 +2,7 @@
 import { loadConfig, publicConfig } from './config.js';
 import { createSampler, summarise } from './sampler.js';
 import { Swarm } from './swarm.js';
+import { ServerWorkloadObserver } from './server-workload.js';
 import { observeWorkload, assessWorkload, WORKLOAD_INTERVAL_MS } from './workload.js';
 import { write, headline, CAVEATS } from './report.js';
 
@@ -53,6 +54,7 @@ async function main() {
 
   const sampler = createSampler(cfg);
   const swarm = new Swarm(cfg, log);
+  const serverObserver = cfg.sampling.method === 'rcon' ? new ServerWorkloadObserver(cfg, swarm) : null;
   const startedAt = new Date().toISOString();
   const steps = [];
   let interrupted = false;
@@ -63,6 +65,7 @@ async function main() {
 
   try {
     await sampler.start();
+    if (serverObserver) await serverObserver.start();
 
     for (const target of cfg.ramp) {
       if (interrupted) break;
@@ -79,20 +82,34 @@ async function main() {
       if (joined < target) log(`  ! only ${joined}/${target} connected`);
 
       log(`  settling ${cfg.settleSeconds}s…`);
-      await sleep(cfg.settleSeconds * 1000);
-
-      const from = Date.now();
-      const holdMs = (cfg.holdSeconds - cfg.settleSeconds) * 1000;
-      const workloadObservations = [observeWorkload(swarm, from)];
-      const observer = setInterval(() => workloadObservations.push(observeWorkload(swarm)), WORKLOAD_INTERVAL_MS);
-      try { await sleep(holdMs); } finally { clearInterval(observer); }
-      const to = Date.now();
-      workloadObservations.push(observeWorkload(swarm, to));
-
-      const moving = swarm.movingCount();
+      const observe = () => serverObserver ? serverObserver.observe() : observeWorkload(swarm);
+      // Warm server-side movement history during settling. Await every read so slow
+      // RCON responses cannot overlap or masquerade as several observations.
+      const settleUntil = Date.now() + cfg.settleSeconds * 1000;
+      while (Date.now() < settleUntil && !interrupted) {
+        const started = Date.now();
+        await observe();
+        await sleep(Math.max(0, Math.min(settleUntil, started + WORKLOAD_INTERVAL_MS) - Date.now()));
+      }
+      if (interrupted) break;
+      const first = await observe();
+      const from = first.t;
+      const deadline = from + (cfg.holdSeconds - cfg.settleSeconds) * 1000;
+      const workloadObservations = [first];
+      let nextAt = from + WORKLOAD_INTERVAL_MS;
+      while (Date.now() < deadline && !interrupted) {
+        await sleep(Math.max(0, Math.min(nextAt, deadline) - Date.now()));
+        workloadObservations.push(await observe());
+        nextAt += WORKLOAD_INTERVAL_MS;
+        // A delayed read leaves a coverage gap; do not manufacture catch-up rows.
+        if (nextAt <= Date.now()) nextAt = Date.now() + WORKLOAD_INTERVAL_MS;
+      }
+      const to = workloadObservations.at(-1).t;
+      const moving = workloadObservations.at(-1).moving;
       const summary = summarise(sampler.samples, from, to);
-      const workload = assessWorkload(workloadObservations, from, to, target, cfg.bots.move);
-      const step = { target, joined: swarm.population, moving, workload, workloadObservations, ...summary };
+      const workload = assessWorkload(workloadObservations, from, to, target, cfg.bots.move, serverObserver ? 'server' : 'client');
+      if (interrupted) { workload.valid = false; workload.reasons.push('measurement_interrupted'); }
+      const step = { from, to, target, joined: swarm.population, moving, workload, workloadObservations, ...summary };
       steps.push(step);
 
       log(`  TPS mean ${summary.tps.mean ?? '—'} | p5 ${summary.tps.p5 ?? '—'} | min ${summary.tps.min ?? '—'}`
@@ -111,6 +128,7 @@ async function main() {
   } finally {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
+    if (serverObserver) await serverObserver.stop();
     await swarm.shutdown();
     await sampler.stop();
   }
