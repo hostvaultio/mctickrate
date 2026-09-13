@@ -6,7 +6,7 @@ export const MIN_TRAVEL_BLOCKS = 16;
 export function observeWorkload(swarm, t = Date.now()) {
   return { t, joined: swarm.population, moving: swarm.movingCount(),
     positions: swarm.bots.filter(b => b._alive && b.entity?.position).map(b => ({
-      name: b.username, x: b.entity.position.x, y: b.entity.position.y, z: b.entity.position.z,
+      name: b.username, digEvents: structuredClone(b._digEvents ?? []), health: b.health, onGround: b.entity.onGround, horizontalCollision: b.entity.isCollidedHorizontally, corrections: b._corrections ?? 0, x: b.entity.position.x, y: b.entity.position.y, z: b.entity.position.z,
     })) };
 }
 

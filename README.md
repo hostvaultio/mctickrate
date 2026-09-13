@@ -27,9 +27,9 @@ recent movement and positions. Stalled workloads stop the ramp and produce an
   `rcon` when you administer the server and want the window averages and maxima.
 - **Results are pinned to a moment.** Server software, version, hardware and plan
   limits all move. Record them — the tool makes you — and re-run.
-- **Bots can stall on natural terrain.** Inspect the workload observations; an
-  unverified run does not establish capacity. A pathfinder trial also stalled on
-  Paper 1.21.11, so it is not enabled in this release.
+- **Bots can still stall on natural terrain.** Inspect the workload observations;
+  an unverified run does not establish capacity. Leaf removal is opt-in and may
+  be needed to escape a canopy in a disposable exploration fixture.
 - **There is a Minecraft version ceiling.** mineflayer's protocol data lags new
   releases. Measured 2026-08-22, the newest it will connect to is **1.21.11** —
   it refuses 26.x with *"Server version is not supported"*. You cannot benchmark
@@ -188,9 +188,23 @@ real recovery, and treat the highest steps as the least trustworthy.
 
 ### Workload qualification
 
-The current movement script can stall on natural terrain. Adding a pathfinder
-alone did not resolve this in a Paper 1.21.11 live trial; traversal remains an
-open acceptance requirement. This release detects and rejects understated load.
+The default [pathfinder](https://github.com/PrismarineJS/mineflayer-pathfinder) uses bounded short waypoints, continually changes failed
+bearings and shortens unreachable routes. Drops are limited to three blocks;
+sprinting, scaffolding and towers are disabled. `bots.navigation=wander` retains
+the original control script. The 1.21.11 client collision box uses a tiny clearance
+adjustment based on [upstream PR 364](https://github.com/PrismarineJS/mineflayer-pathfinder/pull/364).
+Server attributes are unchanged. Other protocol versions retain their dimensions.
+
+`bots.allowLeafDigging=false` is the default. Setting it to `true` explicitly permits
+removing leaves in the tested world, which can let a client escape a tree canopy.
+Use it only on a world where you authorize that modification. Planning retains the
+pathfinder's safety rules, and a separate check immediately before digging rejects
+non-leaf blocks. Original block types and completion outcomes are recorded in JSON.
+There is no block placement or teleport recovery. A passing disposable-world run
+with this option does not establish capacity for other player activity.
+Position corrections are recorded but do not currently disqualify a run; repeated
+corrections can inflate client-side movement. Inspect them before interpreting a
+passing workload screen as sustained server-accepted travel.
 
 During each measured window, the harness records population, recent movement
 and per-client positions every five seconds, including window boundaries.
@@ -223,6 +237,8 @@ change results most:
 | `ramp` | `[1,5,10,15,20]` | Player counts to step through. Must be non-decreasing. |
 | `holdSeconds` | `180` | Time at each step. Shorter runs are noisier. |
 | `settleSeconds` | `30` | Samples discarded after each step change, while chunks load. |
+| `bots.navigation` | `pathfinder` | Bounded terrain routing; `wander` selects the legacy script. |
+| `bots.allowLeafDigging` | `false` | Explicitly permits leaf removal in the tested world. |
 | `bots.move` | `true` | Turning this off understates load severely. |
 | `bots.spreadRadius` | `500` | How far bots disperse. `0` chooses random bearings immediately. |
 | `sampling.method` | `time` | `time` works anywhere; `rcon` is accurate and needs setup. |

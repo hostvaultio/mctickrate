@@ -14,6 +14,8 @@
     "usernamePrefix": "bench",
     "joinStaggerMs": 2000,
     "move": true,
+    "navigation": "pathfinder",
+    "allowLeafDigging": false,
     "turnIntervalMs": 5000,
     "jumpChance": 0.15,
     "spreadRadius": 500

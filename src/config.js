@@ -27,9 +27,11 @@ export const DEFAULTS = {
     // few chunks resident and costs almost nothing; a walking one forces
     // continuous chunk load/unload, which is the expensive path.
     move: true,
-    turnIntervalMs: 5000,    // re-randomise heading this often
-    jumpChance: 0.15,        // helps unstick bots on terrain
-    spreadRadius: 500,       // metres bots try to disperse across; 0 = huddle
+    allowLeafDigging: false, // explicit permission to remove leaves in the tested world
+    navigation: 'pathfinder', // terrain-aware travel; 'wander' retains the legacy control script
+    turnIntervalMs: 5000,    // movement observation interval; also turns legacy wander
+    jumpChance: 0.15,        // jump probability for legacy wander only
+    spreadRadius: 500,       // metres before radial travel switches to random bearings
   },
 
   sampling: {
@@ -108,6 +110,8 @@ export function loadConfig(argv = process.argv.slice(2)) {
 
 export function validate(cfg) {
   const errs = [];
+  if (typeof cfg.bots.allowLeafDigging !== 'boolean') errs.push('bots.allowLeafDigging must be boolean');
+  if (!['wander', 'pathfinder'].includes(cfg.bots.navigation)) errs.push("bots.navigation must be 'wander' or 'pathfinder'");
   if (!cfg.server.host) errs.push('server.host is required');
   if (!Array.isArray(cfg.ramp) || cfg.ramp.length === 0) errs.push('ramp must be a non-empty array');
   if (cfg.ramp.some((n) => !Number.isInteger(n) || n < 1)) errs.push('ramp entries must be positive integers');
